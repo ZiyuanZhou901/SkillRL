@@ -21,7 +21,6 @@ import os
 
 import torch
 import torch.distributed
-from flash_attn.bert_padding import index_first_axis, pad_input, rearrange, unpad_input
 from torch import nn, optim
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
@@ -35,12 +34,6 @@ from verl.utils.torch_functional import masked_mean
 from verl.utils.ulysses import gather_outpus_and_unpad, ulysses_pad_and_slice_inputs
 from verl.workers.critic import BasePPOCritic
 from verl.utils.device import get_device_name, get_torch_device, is_npu_available, is_cuda_available
-
-
-if is_cuda_available:
-    from flash_attn.bert_padding import pad_input, unpad_input, rearrange, index_first_axis
-elif is_npu_available:
-    from transformers.integrations.npu_flash_attention import pad_input, unpad_input, rearrange, index_first_axis
 
 logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "WARN"))
@@ -73,6 +66,13 @@ class DataParallelPPOCritic(BasePPOCritic):
                 position_ids = position_ids.transpose(0, 1)
 
             if self.use_remove_padding:
+                if is_cuda_available:
+                    from flash_attn.bert_padding import pad_input, unpad_input, rearrange, index_first_axis
+                elif is_npu_available:
+                    from transformers.integrations.npu_flash_attention import pad_input, unpad_input, rearrange, index_first_axis
+                else:
+                    raise RuntimeError("remove_padding requires CUDA or NPU support")
+
                 input_ids_rmpad, indices, *_ = unpad_input(input_ids.unsqueeze(-1), attention_mask)  # input_ids_rmpad (total_nnz, ...)
                 input_ids_rmpad = input_ids_rmpad.transpose(0, 1)  # (1, total_nnz)
 

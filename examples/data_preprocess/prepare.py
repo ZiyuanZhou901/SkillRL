@@ -35,15 +35,21 @@ if __name__ == '__main__':
 
     data_source = 'hiyouga/geometry3k'
     """
-    **NOTE**: This is a frequently asked question.
-    We do NOT use the data in 'hiyouga/geometry3k', instead we only use it to indicate the modality and the data size.
-    See details: https://github.com/langfengQ/verl-agent?tab=readme-ov-file#2-data-preparation
+    We do NOT use the data in 'hiyouga/geometry3k', instead we only use it
+    to indicate the modality and the data size.
     """
 
-    dataset = datasets.load_dataset(data_source)
+    empty_example = {
+        "problem": "",
+        "images": [],
+    }
+    train_dataset = datasets.Dataset.from_list(
+        [empty_example.copy() for _ in range(args.train_data_size)]
+    )
+    test_dataset = datasets.Dataset.from_list(
+        [empty_example.copy() for _ in range(args.val_data_size)]
+    )
 
-    train_dataset = dataset['train'].select(range(args.train_data_size))
-    test_dataset = dataset['test'].select(range(args.val_data_size))
 
     instruction_following = {
         "visual": "<image>",

@@ -39,12 +39,6 @@ from verl.utils.torch_functional import logprobs_from_logits
 from verl.utils.ulysses import gather_outpus_and_unpad, ulysses_pad_and_slice_inputs, ulysses_pad
 from verl.workers.actor import BasePPOActor
 
-if is_cuda_available:
-    from flash_attn.bert_padding import index_first_axis, pad_input, rearrange, unpad_input
-elif is_npu_available:
-    from transformers.integrations.npu_flash_attention import index_first_axis, pad_input, rearrange, unpad_input
-
-
 __all__ = ["DataParallelPPOActor"]
 
 logger = logging.getLogger(__file__)
@@ -95,6 +89,13 @@ class DataParallelPPOActor(BasePPOActor):
                 position_ids = position_ids.transpose(0, 1)  # (bsz, 4, seqlen) -> (4, bsz, seqlen)
 
             if self.use_remove_padding:
+                if is_cuda_available:
+                    from flash_attn.bert_padding import index_first_axis, pad_input, rearrange, unpad_input
+                elif is_npu_available:
+                    from transformers.integrations.npu_flash_attention import index_first_axis, pad_input, rearrange, unpad_input
+                else:
+                    raise RuntimeError("remove_padding requires CUDA or NPU support")
+
                 input_ids_rmpad, indices, *_ = unpad_input(input_ids.unsqueeze(-1), attention_mask)  # input_ids_rmpad (total_nnz, ...)
                 input_ids_rmpad = input_ids_rmpad.transpose(0, 1)  # (1, total_nnz)
 

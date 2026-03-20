@@ -1,12 +1,12 @@
 set -x
-ENGINE=${1:-vllm}
+ENGINE=hf
 export VLLM_ATTENTION_BACKEND=XFORMERS
 
 num_cpus_per_env_worker=0.1 # The CPU resource allocated for each environment worker. If you want to use less CPU resources, you can decrease this value.
 
-train_data_size=16
-val_data_size=128
-group_size=8
+train_data_size=8 # 16
+val_data_size=16 # 128
+group_size=2 # 8
 
 # We only use data preparation to indicate the modality and the data size.
 python3 -m examples.data_preprocess.prepare \
@@ -25,27 +25,28 @@ python3 -m verl.trainer.main_ppo \
     data.filter_overlong_prompts=True \
     data.truncation='error' \
     data.return_raw_chat=True \
-    actor_rollout_ref.model.path=Qwen/Qwen2.5-1.5B-Instruct \
+    actor_rollout_ref.model.path=/mnt/data/models/Qwen2.5-0.5B-Instruct \
     actor_rollout_ref.actor.optim.lr=1e-6 \
-    actor_rollout_ref.model.use_remove_padding=True \
-    actor_rollout_ref.actor.ppo_mini_batch_size=256 \
-    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=32 \
+    actor_rollout_ref.model.use_remove_padding=False \
+    actor_rollout_ref.actor.ppo_mini_batch_size=16 \
+    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1 \
     actor_rollout_ref.actor.use_kl_loss=True \
+    actor_rollout_ref.actor.use_torch_compile=False \
     actor_rollout_ref.actor.kl_loss_coef=0.01 \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
     actor_rollout_ref.model.enable_gradient_checkpointing=True \
     actor_rollout_ref.actor.fsdp_config.param_offload=False \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
-    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=32 \
-    actor_rollout_ref.rollout.tensor_model_parallel_size=2 \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
+    actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=$ENGINE \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.4 \
     actor_rollout_ref.rollout.enable_chunked_prefill=False \
     actor_rollout_ref.rollout.enforce_eager=False \
     actor_rollout_ref.rollout.free_cache_engine=False \
     actor_rollout_ref.rollout.val_kwargs.temperature=0.4 \
     actor_rollout_ref.rollout.val_kwargs.do_sample=True \
-    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=32 \
+    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=1 \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     actor_rollout_ref.actor.use_invalid_action_penalty=True \
     actor_rollout_ref.actor.invalid_action_penalty_coef=0.1 \
@@ -56,20 +57,20 @@ python3 -m verl.trainer.main_ppo \
     env.rollout.n=$group_size \
     env.resources_per_worker.num_cpus=$num_cpus_per_env_worker \
     +env.use_retrieval_memory=False \
-    +env.retrieval_memory.json_path=$HOME/verl-agent/memory_data/alfworld/generated_memories_alfworld_total.json \
+    +env.retrieval_memory.json_path=/mnt/data/SkillRL/memory_data/alfworld/generated_memories_alfworld_total.json \
     +env.retrieval_memory.embedding_model=Qwen/Qwen3-Embedding-0.6B \
     +env.retrieval_memory.device=cuda \
     +env.retrieval_memory.top_k=10 \
     +env.retrieval_memory.similarity_threshold=0.7 \
     +env.retrieval_memory.max_tokens=2000 \
-    +env.retrieval_memory.save_dir=$HOME/verl-agent/memory_data/alfworld/new_memories \
+    +env.retrieval_memory.save_dir=/mnt/data/SkillRL/memory_data/alfworld/new_memories \
     trainer.critic_warmup=0 \
-    trainer.logger=['console','wandb'] \
+    trainer.logger=['console'] \
     trainer.project_name='verl_agent_alfworld' \
-    trainer.experiment_name='grpo_qwen2.5_1.5b' \
+    trainer.experiment_name='grpo_qwen2.5_0.5b_smoke' \
     trainer.n_gpus_per_node=2 \
     trainer.nnodes=1 \
     trainer.save_freq=-1 \
     trainer.test_freq=5 \
-    trainer.total_epochs=150 \
+    trainer.total_epochs=1 \
     trainer.val_before_train=True $@
